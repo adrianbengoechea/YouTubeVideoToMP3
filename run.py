@@ -3,6 +3,10 @@ import urllib.request
 import music_tag
 import os
 import numpy as np
+import tkinter as tk
+import random
+import threading
+import time
 
 from pytube import YouTube
 from moviepy.editor import *
@@ -10,6 +14,18 @@ from PIL import Image
 
 # +++++++++++++++++++++++++++
 # DEFAULT VALUES
+
+rid = str(random.randrange(0, 999999999, 8))
+download_thread = '';
+
+
+videoMetaData = {
+  'title': '',
+  'artist': '',
+  'genre': '',
+  'album': '',
+}
+
 defaultPath = {
   'video': './resources/videos/',
   'thumbnail': './resources/thumbnails/',
@@ -17,51 +33,79 @@ defaultPath = {
 }
 
 defaultName = {
-  'video': 'hqvideo.mp4', 
-  'audio': 'song.mp3',
-  'thumbnail': 'hqthumbnail.jpg'
+  'video': 'hqvideo_' + rid +'.mp4', 
+  'audio': 'song_' + rid +'.mp3',
+  'thumbnail': 'hqthumbnail_' + rid +'.jpg'
 }
 
 
-# FUNCTIONS
-def YoutubeGetVideo(video, custom_thumbnail_url = ""):
 
+
+
+def GetYTvideoInBackground(video):
+  download_thread = threading.Thread(target=YoutubeDownloadVideo, args=[video])
+  download_thread.start()
+
+  title = input('Title: ')
+  artist = input('Artist: ')
+  genre = input('Genre: ')
+  album = input('Album: ')
+
+  videoMetaData['title'] = title
+  videoMetaData['artist'] = artist
+  videoMetaData['genre'] = genre
+  videoMetaData['album'] = album
+
+  count = 2
+  while(download_thread.is_alive()):
+    count += 1
+    time.sleep(1)
+    print('Downloading' + (count * '.'))
+    continue
+  
+  print('Download Completed!')
+  YoutubeVideoToMP3()
+  
+
+# FUNCTIONS
+def YoutubeDownloadVideo(videoURL):
+  video = YouTube(videoURL)
 
   # DOWNLOAD YOUTUBE VIDEO FILE
   try:
     youtubeVideo = video.streams[2]
     youtubeVideo.download(defaultPath['video'], defaultName['video'])
-    print('> Video Downloaded!')
+    # print('> Video Downloaded!')
   except:
     print("> Youtube Video Process Error.")
   
 
 
   # DOWNLOAD YOUTUBE THUMBNAIL FILE
-    print(custom_thumbnail_url)
+
   try:
-    if custom_thumbnail_url.strip() != "":
-      YouTubeThumbnailURL = custom_thumbnail_url
-    else:
-      YouTubeThumbnailURL = video.thumbnail_url
-      
+    YouTubeThumbnailURL = video.thumbnail_url 
     urllib.request.urlretrieve(YouTubeThumbnailURL, defaultPath['thumbnail'] + defaultName['thumbnail'])
 
     image = Image.open(r"" + defaultPath['thumbnail'] + defaultName['thumbnail'])
-    art_dimensions = (512, 512)
+    art_dimensions = (300, 300)
     image.thumbnail(art_dimensions)
     image.save(defaultPath['thumbnail'] + defaultName['thumbnail'])
 
 
    
 
-    print('> Thumbnail Downloaded!')
+    # print('> Thumbnail Downloaded!')
   except:
     print('> Thumbnail Process Error.')
 
 
 
+
+
+def MP4toMP3():
   # TRANSFORM MP4 TO MP3
+  print('> Transforming from MP4 to MP3 ...')
   try:
     mp4VideoClip = VideoFileClip(defaultPath['video'] + defaultName['video'])
     mp4AudioClip = mp4VideoClip.audio
@@ -78,15 +122,12 @@ def YoutubeGetVideo(video, custom_thumbnail_url = ""):
 def MP3UpdateMetadata(f_path):
 
   # GET MP3 VALUES
-  title = input('MP3 Title: ')
-  artists = input('MP3 Artist: ')
-  genre = input('MP3 Genre: ')
-  album = input('MP3 Album: ')
+  
   print('====================')
 
 
   f = music_tag.load_file(f_path)
-  new_filename_mp3 = title + " - " + artists + ".mp3"
+  new_filename_mp3 = videoMetaData['title'] + " - " + videoMetaData['artist'] + ".mp3"
 
   # print(f)
   # print(defaultPath['audio'] + filename_mp3)
@@ -94,13 +135,13 @@ def MP3UpdateMetadata(f_path):
   # UPDATE MP3 METADATA
 
   print("> Updating Title")
-  f['title'] = title
+  f['title'] = videoMetaData['title']
   print("> Updating Artist")
-  f['artist'] = artists
+  f['artist'] = videoMetaData['artist']
   print("> Updating Genre")
-  f['genre'] = genre
+  f['genre'] = videoMetaData['genre']
   print("> Updating Album")
-  f['album'] = album
+  f['album'] = videoMetaData['album']
 
 
   with open(defaultPath['thumbnail'] + defaultName['thumbnail'], 'rb') as img_in:
@@ -115,20 +156,15 @@ def MP3UpdateMetadata(f_path):
   print("====================")
   print("> MP3 INFO")
   print("Filename: " + new_filename_mp3)
-  print("Title: " + title)
-  print("Artist: " + artists)
-  print("Genre: " + genre)
-  print("Album: " + album)
+  print("Title: " + videoMetaData['title'])
+  print("Artist: " + videoMetaData['artist'])
+  print("Genre: " + videoMetaData['genre'])
+  print("Album: " + videoMetaData['album'])
 
 
-def YoutubeVideoToMP3( video_url = False ):
-  if video_url:
-    video = YouTube(video_url)
-
-    
-
+def YoutubeVideoToMP3():
     try:
-      YoutubeGetVideo(video)
+      MP4toMP3()
       MP3UpdateMetadata(defaultPath['audio'] + defaultName['audio'])
       print('********************************')
       print('* MP3 Downloaded Successfully! *')
@@ -143,10 +179,8 @@ def YoutubeVideoToMP3( video_url = False ):
 
 
 # EXECUTE
-youtube_video_url = input('Youtube Video URL: ')
-YoutubeVideoToMP3(youtube_video_url)
-  
-  
+YouTubeVideoURL = input('Youtube Video URL: ')
+GetYTvideoInBackground(YouTubeVideoURL)
 
 
 
